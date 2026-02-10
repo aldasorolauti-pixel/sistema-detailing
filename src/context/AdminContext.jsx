@@ -58,7 +58,12 @@ export const AdminProvider = ({ children }) => {
 
     const updateBookingStatus = useCallback((bookingId, newStatus) => {
         const bookings = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || '[]');
-        const updated = bookings.map(b => b.id === bookingId ? { ...b, status: newStatus } : b);
+        const updated = bookings.map(b => {
+            if (b.id !== bookingId) return b;
+            const update = { ...b, status: newStatus, updatedAt: new Date().toISOString() };
+            if (newStatus === 'completed') update.completedAt = new Date().toISOString();
+            return update;
+        });
         localStorage.setItem(BOOKINGS_KEY, JSON.stringify(updated));
     }, []);
 
