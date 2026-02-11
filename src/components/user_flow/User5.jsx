@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBooking } from '../../context/BookingContext';
-import { VEHICLES, SERVICES } from '../../lib/constants';
+import { useConfig } from '../../context/ConfigContext';
 import { formatDuration } from '../../lib/formatters';
 
 const User5 = () => {
@@ -18,14 +18,15 @@ const User5 = () => {
         setStep,
         resetBooking
     } = useBooking();
+    const { vehicles, services: allServices } = useConfig();
 
     const handleClose = () => {
         resetBooking();
         navigate('/');
     };
 
-    const vehicle = VEHICLES.find(v => v.id === selectedVehicle);
-    const services = SERVICES.filter(s => selectedServices.includes(s.id));
+    const vehicle = vehicles.find(v => v.id === selectedVehicle);
+    const services = allServices.filter(s => selectedServices.includes(s.id));
     const totalPrice = calculatePrice();
     const totalDuration = calculateDuration();
 

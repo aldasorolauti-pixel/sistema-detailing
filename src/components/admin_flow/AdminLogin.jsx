@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAdmin } from '../../context/AdminContext';
 
 const AdminLogin = () => {
     const { login } = useAdmin();
+    const navigate = useNavigate();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -25,6 +27,14 @@ const AdminLogin = () => {
 
     return (
         <div className="min-h-screen bg-[#020617] flex items-center justify-center p-6 relative overflow-hidden">
+            {/* Close button */}
+            <button
+                onClick={() => navigate('/')}
+                className="absolute top-4 right-4 z-20 p-2 hover:bg-white/10 rounded-lg transition-colors"
+            >
+                <span className="material-symbols-outlined text-white/60 hover:text-white text-2xl">close</span>
+            </button>
+
             {/* Background effects */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute top-1/4 -left-32 w-96 h-96 bg-[#F59E0B]/5 rounded-full blur-3xl"></div>

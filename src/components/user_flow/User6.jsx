@@ -1,8 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBooking } from '../../context/BookingContext';
-import { VEHICLES, SERVICES } from '../../lib/constants';
-import { formatDuration, formatDate } from '../../lib/formatters';
+import { useConfig } from '../../context/ConfigContext';
+import { formatDuration } from '../../lib/formatters';
 
 const User6 = () => {
     const navigate = useNavigate();
@@ -17,6 +17,7 @@ const User6 = () => {
         calculatePrice,
         calculateDuration
     } = useBooking();
+    const { vehicles, services: allServices } = useConfig();
 
     const handleNewBooking = () => {
         resetBooking();
@@ -28,8 +29,16 @@ const User6 = () => {
         navigate('/');
     };
 
-    const vehicle = VEHICLES.find(v => v.id === selectedVehicle);
-    const services = SERVICES.filter(s => selectedServices.includes(s.id));
+    const openWhatsApp = () => {
+        const dateStr = selectedDate?.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' }) || '';
+        const message = encodeURIComponent(
+            `Hola! Acabo de hacer una reserva para el ${dateStr} a las ${selectedTime}. ¿Pueden confirmarme?`
+        );
+        window.open(`https://wa.me/5491234567890?text=${message}`, '_blank');
+    };
+
+    const vehicle = vehicles.find(v => v.id === selectedVehicle);
+    const services = allServices.filter(s => selectedServices.includes(s.id));
     const totalPrice = calculatePrice();
     const totalDuration = calculateDuration();
 
@@ -68,12 +77,13 @@ const User6 = () => {
             <div className="absolute inset-0 z-0 opacity-20 bg-[url('https://images.unsplash.com/photo-1601362840469-51e4d8d58785?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center"></div>
             <div className="absolute inset-0 z-0 bg-[#020617]/95 backdrop-blur-sm"></div>
 
-            <div className="relative z-10 w-full max-w-[420px] h-[850px] max-h-[92vh] bg-[#020617] rounded-[16px] shadow-2xl overflow-hidden flex flex-col items-center justify-center border border-white/10 ring-1 ring-white/5 p-8">
-                <div className="flex flex-col items-center justify-center w-full h-full text-center space-y-8">
-                    <div className="relative flex items-center justify-center mb-4">
-                        <div className="absolute w-28 h-28 bg-green-500/20 rounded-full blur-xl animate-pulse"></div>
-                        <div className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(34,197,94,0.4)] animate-pop z-10">
-                            <span className="material-symbols-outlined text-white text-5xl font-bold">check</span>
+            <div className="relative z-10 w-full max-w-[420px] bg-[#020617] rounded-[24px] shadow-2xl flex flex-col border border-white/10 ring-1 ring-white/5 my-auto">
+                <div className="flex flex-col items-center justify-center w-full p-8 pt-12 pb-10">
+                    {/* Check verde con espacio suficiente */}
+                    <div className="relative flex items-center justify-center mb-8">
+                        <div className="absolute w-36 h-36 bg-green-500/20 rounded-full blur-xl animate-pulse"></div>
+                        <div className="w-32 h-32 bg-green-500 rounded-full flex items-center justify-center shadow-2xl shadow-green-500/50 animate-pop z-10">
+                            <span className="material-symbols-outlined text-white w-20 h-20 text-7xl font-bold flex items-center justify-center">check</span>
                         </div>
                     </div>
 
@@ -82,7 +92,7 @@ const User6 = () => {
                         <p className="text-white/50 text-sm font-medium px-4">Te contactaremos por WhatsApp para confirmar los detalles.</p>
                     </div>
 
-                    <div className="w-full animate-slide-up delay-200">
+                    <div className="w-full animate-slide-up delay-200 mt-8">
                         <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-[20px] p-6 space-y-5 shadow-lg relative overflow-hidden group">
                             <div className="absolute top-0 right-0 w-32 h-32 bg-[#F59E0B]/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
 
@@ -143,16 +153,24 @@ const User6 = () => {
                         </div>
                     </div>
 
-                    <div className="w-full space-y-4 pt-4 animate-slide-up delay-300">
+                    {/* Botones con margen inferior */}
+                    <div className="w-full space-y-3 mt-8 animate-slide-up delay-300">
+                        <button
+                            onClick={openWhatsApp}
+                            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-base py-4 px-6 rounded-[16px] shadow-lg shadow-green-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                        >
+                            <span className="material-symbols-outlined text-xl">chat</span>
+                            <span>Contactar por WhatsApp</span>
+                        </button>
                         <button
                             onClick={handleNewBooking}
-                            className="w-full bg-gradient-to-r from-[#FBBF24] to-[#D97706] hover:brightness-110 text-[#020617] font-bold text-lg py-4 px-6 rounded-[16px] shadow-[0_8px_20px_-5px_rgba(245,158,11,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                            className="w-full bg-gradient-to-r from-[#FBBF24] to-[#D97706] hover:brightness-110 text-[#020617] font-bold text-base py-4 px-6 rounded-[16px] shadow-[0_8px_20px_-5px_rgba(245,158,11,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                         >
                             <span>Hacer otra reserva</span>
                         </button>
                         <button
                             onClick={handleGoHome}
-                            className="block w-full text-white/50 hover:text-white text-sm font-medium transition-colors p-2"
+                            className="w-full bg-white/10 hover:bg-white/20 text-white font-bold text-base py-4 px-6 rounded-[16px] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                         >
                             Volver al inicio
                         </button>

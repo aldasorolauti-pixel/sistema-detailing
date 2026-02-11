@@ -48,7 +48,7 @@ export const AdminProvider = ({ children }) => {
             id: `walkin-${Date.now()}`,
             ...bookingData,
             source: 'walkin',
-            status: 'confirmed',
+            status: 'in-progress',
             createdAt: new Date().toISOString(),
         };
         bookings.push(newBooking);

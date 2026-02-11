@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBooking } from '../../context/BookingContext';
-import { SERVICES, VEHICLES } from '../../lib/constants';
+import { useConfig } from '../../context/ConfigContext';
 import { formatDuration } from '../../lib/formatters';
 
 const User2 = () => {
@@ -15,6 +15,7 @@ const User2 = () => {
         setStep,
         resetBooking
     } = useBooking();
+    const { activeServices, vehicles } = useConfig();
 
     const handleClose = () => {
         resetBooking();
@@ -26,7 +27,7 @@ const User2 = () => {
     const totalDuration = calculateDuration();
 
     // Get vehicle info for display
-    const vehicle = VEHICLES.find(v => v.id === selectedVehicle);
+    const vehicle = vehicles.find(v => v.id === selectedVehicle);
 
     return (
         <div className="bg-gray-100 dark:bg-black font-sans flex items-center justify-center min-h-screen p-4 bg-cover bg-center bg-no-repeat relative">
@@ -120,13 +121,13 @@ const User2 = () => {
                     </div>
                 </header>
 
-                <main className="flex-1 overflow-y-auto hide-scrollbar p-6 space-y-4 pb-32">
+                <main className="flex-1 overflow-y-auto hide-scrollbar p-6 space-y-4 pb-40">
                     <div className="animate-fade-in">
                         <h3 className="text-white text-xl font-bold mb-2">2. Seleccioná los servicios</h3>
                         <p className="text-white/50 text-sm mb-6">Podés elegir uno o más</p>
 
                         <div className="space-y-3">
-                            {SERVICES.map((service) => {
+                            {activeServices.map((service) => {
                                 const isSelected = selectedServices.includes(service.id);
                                 const price = Math.round(service.basePrice * (vehicle?.multiplier || 1));
 

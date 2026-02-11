@@ -4,11 +4,11 @@ import { useConfig } from '../../context/ConfigContext';
 import { formatDuration } from '../../lib/formatters';
 
 const STATUS_CONFIG = {
-    pending: { label: 'Pendiente', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/20', dot: 'bg-yellow-400' },
-    confirmed: { label: 'Confirmado', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/20', dot: 'bg-emerald-400' },
-    'in-progress': { label: 'En Curso', color: 'bg-blue-500/20 text-blue-400 border-blue-500/20', dot: 'bg-blue-400' },
-    completed: { label: 'Terminado', color: 'bg-green-600/20 text-green-400 border-green-600/20', dot: 'bg-green-400' },
-    cancelled: { label: 'Cancelado', color: 'bg-red-500/20 text-red-400 border-red-500/20', dot: 'bg-red-400' },
+    pending: { label: 'Pendiente', color: 'bg-amber-500/20 text-amber-400 border-amber-500/40', dot: 'bg-amber-400' },
+    confirmed: { label: 'Confirmado', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40', dot: 'bg-emerald-400' },
+    'in-progress': { label: 'En Curso', color: 'bg-blue-500/20 text-blue-400 border-blue-500/40', dot: 'bg-blue-400' },
+    completed: { label: 'Terminado', color: 'bg-teal-600/20 text-teal-300 border-teal-600/40', dot: 'bg-teal-300' },
+    cancelled: { label: 'Cancelado', color: 'bg-red-500/20 text-red-400 border-red-500/40', dot: 'bg-red-400' },
 };
 
 const AdminBookingDetail = () => {

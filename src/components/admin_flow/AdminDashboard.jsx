@@ -4,10 +4,10 @@ import { useConfig } from '../../context/ConfigContext';
 import { formatDuration } from '../../lib/formatters';
 
 const STATUS_LABELS = {
-    pending: { label: 'Pendiente', color: 'bg-yellow-500/20 text-yellow-400' },
+    pending: { label: 'Pendiente', color: 'bg-amber-500/20 text-amber-400' },
     confirmed: { label: 'Confirmado', color: 'bg-emerald-500/20 text-emerald-400' },
     'in-progress': { label: 'En Curso', color: 'bg-blue-500/20 text-blue-400' },
-    completed: { label: 'Terminado', color: 'bg-green-600/20 text-green-400' },
+    completed: { label: 'Terminado', color: 'bg-teal-600/20 text-teal-300' },
     cancelled: { label: 'Cancelado', color: 'bg-red-500/20 text-red-400' },
 };
 

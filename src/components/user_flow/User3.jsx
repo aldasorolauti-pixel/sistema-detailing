@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBooking } from '../../context/BookingContext';
-import { TIME_SLOTS } from '../../lib/constants';
+import { useConfig } from '../../context/ConfigContext';
 import { formatDuration } from '../../lib/formatters';
 
 const User3 = () => {
@@ -12,9 +12,11 @@ const User3 = () => {
         selectedTime,
         setSelectedTime,
         calculateDuration,
+        getAvailableSlots,
         setStep,
         resetBooking
     } = useBooking();
+    const { isDateAvailable } = useConfig();
 
     const handleClose = () => {
         resetBooking();
@@ -22,9 +24,24 @@ const User3 = () => {
     };
 
     const [currentMonth, setCurrentMonth] = useState(new Date());
+    const [availableSlots, setAvailableSlots] = useState([]);
 
     const totalDuration = calculateDuration();
     const isValid = selectedDate && selectedTime;
+
+    // Update available slots when date changes
+    useEffect(() => {
+        if (selectedDate) {
+            const slots = getAvailableSlots(selectedDate);
+            setAvailableSlots(slots);
+            // If currently selected time is no longer available, reset it
+            if (selectedTime && !slots.includes(selectedTime)) {
+                setSelectedTime(null);
+            }
+        } else {
+            setAvailableSlots([]);
+        }
+    }, [selectedDate, getAvailableSlots]);
 
     // Generate calendar days
     const calendarDays = useMemo(() => {
@@ -57,10 +74,16 @@ const User3 = () => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        if (date >= today) {
+        if (date >= today && isDateAvailable(date)) {
             setSelectedDate(date);
             setSelectedTime(null); // Reset time when date changes
         }
+    };
+
+    const isClosedDate = (day) => {
+        if (!day) return false;
+        const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+        return !isDateAvailable(date);
     };
 
     const isPastDate = (day) => {
@@ -69,6 +92,10 @@ const User3 = () => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         return date < today;
+    };
+
+    const isDisabledDate = (day) => {
+        return isPastDate(day) || isClosedDate(day);
     };
 
     const isSelectedDate = (day) => {
@@ -89,6 +116,14 @@ const User3 = () => {
     };
 
     const monthName = currentMonth.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+
+    const formatSlotLabel = (slot) => {
+        const hour = parseInt(slot.split(':')[0]);
+        if (hour === 0) return '12:00 AM';
+        if (hour < 12) return `${hour}:00 AM`;
+        if (hour === 12) return '12:00 PM';
+        return `${hour - 12}:00 PM`;
+    };
 
     return (
         <div className="bg-gray-100 dark:bg-black font-sans flex items-center justify-center min-h-screen p-4 bg-cover bg-center bg-no-repeat relative">
@@ -188,17 +223,19 @@ const User3 = () => {
                                     return <div key={`empty-${index}`} className="aspect-square"></div>;
                                 }
 
-                                const isPast = isPastDate(day);
+                                const disabled = isDisabledDate(day);
+                                const closed = isClosedDate(day);
                                 const isSelected = isSelectedDate(day);
 
                                 return (
                                     <button
                                         key={day}
                                         onClick={() => handleDateSelect(day)}
-                                        disabled={isPast}
+                                        disabled={disabled}
+                                        title={closed && !isPastDate(day) ? 'Cerrado' : undefined}
                                         className={`aspect-square flex items-center justify-center text-sm rounded-full transition-all ${isSelected
                                             ? 'bg-[#F59E0B] text-[#020617] font-bold ring-4 ring-[#F59E0B]/20 shadow-lg shadow-[#F59E0B]/20 z-10 transform scale-110'
-                                            : isPast
+                                            : disabled
                                                 ? 'text-white/10 cursor-not-allowed'
                                                 : 'text-white hover:bg-white/10 hover:text-[#F59E0B]'
                                             }`}
@@ -219,20 +256,28 @@ const User3 = () => {
                                     {selectedDate.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' })}
                                 </span>
                             </div>
-                            <div className="grid grid-cols-3 gap-3">
-                                {TIME_SLOTS.map(slot => (
-                                    <button
-                                        key={slot.time}
-                                        onClick={() => setSelectedTime(slot.time)}
-                                        className={`py-3 px-2 text-sm font-medium rounded-xl transition-all ${selectedTime === slot.time
-                                            ? 'font-bold text-[#020617] bg-[#F59E0B] border-2 border-[#F59E0B] shadow-[0_0_15px_rgba(245,158,11,0.3)] transform scale-105'
-                                            : 'text-white bg-[#0f172a] border border-white/10 hover:border-[#F59E0B] hover:text-[#F59E0B] active:scale-95'
-                                            }`}
-                                    >
-                                        {slot.label}
-                                    </button>
-                                ))}
-                            </div>
+                            {availableSlots.length === 0 ? (
+                                <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-center">
+                                    <span className="material-symbols-outlined text-3xl text-white/20 mb-2 block">event_busy</span>
+                                    <p className="text-white/40 text-sm">No hay horarios disponibles para este día</p>
+                                    <p className="text-white/25 text-xs mt-1">Probá con otra fecha</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-3 gap-3">
+                                    {availableSlots.map(slot => (
+                                        <button
+                                            key={slot}
+                                            onClick={() => setSelectedTime(slot)}
+                                            className={`py-3 px-2 text-sm font-medium rounded-xl transition-all ${selectedTime === slot
+                                                ? 'font-bold text-[#020617] bg-[#F59E0B] border-2 border-[#F59E0B] shadow-[0_0_15px_rgba(245,158,11,0.3)] transform scale-105'
+                                                : 'text-white bg-[#0f172a] border border-white/10 hover:border-[#F59E0B] hover:text-[#F59E0B] active:scale-95'
+                                                }`}
+                                        >
+                                            {formatSlotLabel(slot)}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </section>
                     )}
                 </main>

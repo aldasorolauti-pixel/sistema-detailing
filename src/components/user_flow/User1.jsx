@@ -1,10 +1,11 @@
 import React from 'react';
 import { useBooking } from '../../context/BookingContext';
+import { useConfig } from '../../context/ConfigContext';
 import { useNavigate } from 'react-router-dom';
-import { VEHICLES } from '../../lib/constants';
 
 const User1 = () => {
     const { selectedVehicle, setSelectedVehicle, setStep, resetBooking } = useBooking();
+    const { vehicles } = useConfig();
     const navigate = useNavigate();
 
     const handleVehicleSelect = (vehicleId) => {
@@ -84,7 +85,7 @@ const User1 = () => {
                         <p className="text-white/50 text-sm mb-6">Elegí el tipo que mejor se ajuste</p>
 
                         <div className="grid grid-cols-2 gap-4">
-                            {VEHICLES.map((vehicle) => (
+                            {vehicles.map((vehicle) => (
                                 <button
                                     key={vehicle.id}
                                     onClick={() => handleVehicleSelect(vehicle.id)}

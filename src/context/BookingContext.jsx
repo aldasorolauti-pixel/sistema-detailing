@@ -1,6 +1,6 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { VEHICLES, SERVICES } from '../lib/constants';
+import { useConfig } from './ConfigContext';
 
 const BookingContext = createContext();
 
@@ -13,6 +13,7 @@ export const useBooking = () => {
 };
 
 const STORAGE_KEY = 'detailing_booking_draft';
+const BOOKINGS_KEY = 'detailing_bookings';
 
 const initialState = {
     step: 1,
@@ -30,6 +31,8 @@ const initialState = {
 };
 
 export const BookingProvider = ({ children }) => {
+    const { services, activeServices, vehicles, schedule, capacity, isDateAvailable, getAvailableHours } = useConfig();
+
     const [bookingState, setBookingState] = useState(() => {
         // Cargar desde localStorage si existe
         try {
@@ -107,32 +110,110 @@ export const BookingProvider = ({ children }) => {
         }));
     };
 
-    const calculatePrice = () => {
+    // Use config data for calculations instead of hardcoded constants
+    const calculatePrice = useCallback(() => {
         if (!bookingState.selectedVehicle || bookingState.selectedServices.length === 0) {
             return 0;
         }
 
-        const vehicle = VEHICLES.find(v => v.id === bookingState.selectedVehicle);
+        const vehicle = vehicles.find(v => v.id === bookingState.selectedVehicle);
         if (!vehicle) return 0;
 
         return bookingState.selectedServices.reduce((total, serviceId) => {
-            const service = SERVICES.find(s => s.id === serviceId);
+            const service = services.find(s => s.id === serviceId);
             if (!service) return total;
             return total + (service.basePrice * vehicle.multiplier);
         }, 0);
-    };
+    }, [bookingState.selectedVehicle, bookingState.selectedServices, vehicles, services]);
 
-    const calculateDuration = () => {
+    const calculateDuration = useCallback(() => {
         if (bookingState.selectedServices.length === 0) {
             return 0;
         }
 
         return bookingState.selectedServices.reduce((total, serviceId) => {
-            const service = SERVICES.find(s => s.id === serviceId);
+            const service = services.find(s => s.id === serviceId);
             if (!service) return total;
             return total + service.duration;
         }, 0);
-    };
+    }, [bookingState.selectedServices, services]);
+
+    // ── Availability: checks capacity + schedule + duration ──
+    const getAvailableSlots = useCallback((date) => {
+        if (!date) return [];
+        if (!isDateAvailable(date)) return [];
+
+        // Get the configured hours for this day
+        const configuredHours = getAvailableHours(date);
+        if (configuredHours.length === 0) return [];
+
+        // Parse the hour values
+        const hourValues = configuredHours.map(h => parseInt(h.split(':')[0]));
+        const minHour = Math.min(...hourValues);
+        const maxHour = Math.max(...hourValues);
+        // maxHour represents the last slot start; closing time is maxHour + 1
+        // But actually getAvailableHours generates slots from startH to endH inclusive
+        // The endH from schedule is the closing hour, so the last valid slot depends on duration
+        // Let's use the schedule directly for closing hour
+        const dayOfWeek = date.getDay();
+        const daySchedule = schedule.weekly[dayOfWeek];
+        const closingHour = daySchedule?.end ? parseInt(daySchedule.end.split(':')[0]) : maxHour + 1;
+
+        // Calculate duration in hours (rounded up)
+        const duration = calculateDuration();
+        const hoursNeeded = Math.max(1, Math.ceil(duration / 60));
+
+        // Load existing bookings to check capacity
+        let allBookings = [];
+        try {
+            allBookings = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || '[]');
+        } catch {
+            allBookings = [];
+        }
+
+        const dateStr = date.toISOString().split('T')[0];
+
+        const availableSlots = [];
+        for (let hour = minHour; hour <= maxHour; hour++) {
+            // BUG #4: Check if service fits before closing (Allow exact fit: if closes at 19:00 and ends at 19:00, it's valid)
+            if (hour + hoursNeeded > closingHour) {
+                continue;
+            }
+
+            // BUG #2: Check capacity for each hour the service occupies
+            let slotAvailable = true;
+            for (let h = 0; h < hoursNeeded; h++) {
+                const checkHour = hour + h;
+                const hourStr = `${String(checkHour).padStart(2, '0')}:00`;
+
+                // Count bookings that overlap this hour
+                const concurrentBookings = allBookings.filter(booking => {
+                    if (booking.status === 'cancelled') return false;
+                    if (!booking.date) return false;
+                    const bookingDateStr = booking.date.split('T')[0];
+                    if (bookingDateStr !== dateStr) return false;
+
+                    // Parse booking time and duration
+                    const bookingStartHour = parseInt((booking.time || '00:00').split(':')[0]);
+                    const bookingDuration = booking.duration || 60;
+                    const bookingEndHour = bookingStartHour + Math.ceil(bookingDuration / 60);
+
+                    return checkHour >= bookingStartHour && checkHour < bookingEndHour;
+                });
+
+                if (concurrentBookings.length >= capacity) {
+                    slotAvailable = false;
+                    break;
+                }
+            }
+
+            if (slotAvailable) {
+                availableSlots.push(`${String(hour).padStart(2, '0')}:00`);
+            }
+        }
+
+        return availableSlots;
+    }, [schedule, capacity, calculateDuration, isDateAvailable, getAvailableHours]);
 
     const resetBooking = () => {
         setBookingState(initialState);
@@ -140,7 +221,7 @@ export const BookingProvider = ({ children }) => {
     };
 
     const saveBooking = () => {
-        const bookings = JSON.parse(localStorage.getItem('detailing_bookings') || '[]');
+        const bookings = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || '[]');
         const newBooking = {
             id: `booking-${Date.now()}`,
             vehicle: bookingState.selectedVehicle,
@@ -154,7 +235,7 @@ export const BookingProvider = ({ children }) => {
             createdAt: new Date().toISOString(),
         };
         bookings.push(newBooking);
-        localStorage.setItem('detailing_bookings', JSON.stringify(bookings));
+        localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
         // NOTE: Do NOT call resetBooking() here — User6 needs the state to render the success screen.
         // Reset happens when user clicks "Hacer otra reserva" or "Volver al inicio" in User6.
         return newBooking;
@@ -180,6 +261,9 @@ export const BookingProvider = ({ children }) => {
         // Calculations
         calculatePrice,
         calculateDuration,
+
+        // Availability (Bugs #2, #3, #4)
+        getAvailableSlots,
 
         // Actions
         resetBooking,
