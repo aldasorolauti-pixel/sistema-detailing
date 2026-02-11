@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from '../../context/AdminContext';
+import { BUSINESS_CONFIG } from '../../utils/constants';
 
 const AdminLogin = () => {
     const { login } = useAdmin();
@@ -47,7 +48,7 @@ const AdminLogin = () => {
                     <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-[#F59E0B] to-[#D97706] rounded-2xl mb-6 shadow-lg shadow-[#F59E0B]/20">
                         <span className="material-symbols-outlined text-3xl text-black">auto_awesome</span>
                     </div>
-                    <h1 className="text-3xl font-bold text-white tracking-tight">Detailing Pro</h1>
+                    <h1 className="text-3xl font-bold text-white tracking-tight">{BUSINESS_CONFIG.name}</h1>
                     <p className="text-white/40 text-sm mt-2">Portal Administrativo</p>
                 </div>
 
@@ -115,7 +116,7 @@ const AdminLogin = () => {
                 </div>
 
                 <p className="text-center text-white/20 text-xs mt-8">
-                    © 2026 Detailing Pro System. Todos los derechos reservados.
+                    © 2026 {BUSINESS_CONFIG.name} System. Todos los derechos reservados.
                 </p>
             </div>
         </div>

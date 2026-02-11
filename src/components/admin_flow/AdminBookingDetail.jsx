@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { useAdmin } from '../../context/AdminContext';
 import { useConfig } from '../../context/ConfigContext';
 import { formatDuration } from '../../lib/formatters';
+import { sendWhatsAppNotification } from '../../utils/notifications';
 
 const STATUS_CONFIG = {
     pending: { label: 'Pendiente', color: 'bg-amber-500/20 text-amber-400 border-amber-500/40', dot: 'bg-amber-400' },
+    waiting_deposit: { label: 'Esperando Seña', color: 'bg-orange-500/20 text-orange-400 border-orange-500/40', dot: 'bg-orange-400' },
     confirmed: { label: 'Confirmado', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40', dot: 'bg-emerald-400' },
     'in-progress': { label: 'En Curso', color: 'bg-blue-500/20 text-blue-400 border-blue-500/40', dot: 'bg-blue-400' },
     completed: { label: 'Terminado', color: 'bg-teal-600/20 text-teal-300 border-teal-600/40', dot: 'bg-teal-300' },
@@ -15,6 +17,7 @@ const AdminBookingDetail = () => {
     const { selectedBooking, navigateTo, updateBookingStatus } = useAdmin();
     const { vehicles, services: allServices } = useConfig();
     const [updating, setUpdating] = useState(false);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
 
     if (!selectedBooking) return null;
 
@@ -29,6 +32,37 @@ const AdminBookingDetail = () => {
         if (!dateStr) return '—';
         const d = new Date(dateStr);
         return d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    };
+
+    // Acciones principales
+    const requestDeposit = () => {
+        setUpdating(true);
+        sendWhatsAppNotification('waiting_deposit', booking);
+        updateBookingStatus(booking.id, 'waiting_deposit');
+        setTimeout(() => navigateTo('dashboard'), 400);
+    };
+
+    const confirmBooking = () => {
+        setUpdating(true);
+        sendWhatsAppNotification('booking-confirmed', booking);
+        updateBookingStatus(booking.id, 'confirmed');
+        setTimeout(() => navigateTo('dashboard'), 400);
+    };
+
+    const completeJob = () => {
+        if (!window.confirm('¿El servicio está terminado?')) return;
+        setUpdating(true);
+        sendWhatsAppNotification('booking-completed', booking);
+        updateBookingStatus(booking.id, 'completed');
+        setTimeout(() => navigateTo('dashboard'), 400);
+    };
+
+    const handleCancel = () => {
+        if (!window.confirm('¿Seguro que querés cancelar este turno?')) return;
+        setUpdating(true);
+        sendWhatsAppNotification('booking-cancelled', booking);
+        updateBookingStatus(booking.id, 'cancelled');
+        setTimeout(() => navigateTo('dashboard'), 400);
     };
 
     const handleStatusChange = (newStatus) => {
@@ -162,31 +196,71 @@ const AdminBookingDetail = () => {
                     {/* Contextual Actions */}
                     {!isReadOnly && (
                         <div className="space-y-3">
+                            {/* ESTADO: PENDIENTE */}
                             {booking.status === 'pending' && (
-                                <div className="flex gap-3">
+                                <div className="space-y-3">
                                     <button
-                                        onClick={() => handleStatusChange('cancelled')}
+                                        onClick={requestDeposit}
                                         disabled={updating}
-                                        className="flex-1 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 text-white/60 hover:text-red-400 font-bold py-3.5 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                        className="w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:brightness-110 text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
-                                        <span className="material-symbols-outlined text-xl">cancel</span>
-                                        Cancelar
+                                        <span className="material-symbols-outlined text-xl">payments</span>
+                                        Solicitar Seña (30%)
                                     </button>
+
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={handleCancel}
+                                            disabled={updating}
+                                            className="flex-1 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 text-white/60 hover:text-red-400 font-bold py-3.5 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                        >
+                                            <span className="material-symbols-outlined text-xl">cancel</span>
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            onClick={confirmBooking}
+                                            disabled={updating}
+                                            className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                        >
+                                            <span className="material-symbols-outlined text-xl">check_circle</span>
+                                            Confirmar
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ESTADO: ESPERANDO SEÑA */}
+                            {booking.status === 'waiting_deposit' && (
+                                <div className="space-y-3">
+                                    <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4 flex items-center gap-3 text-orange-400 mb-2">
+                                        <span className="material-symbols-outlined text-xl animate-pulse">hourglass_empty</span>
+                                        <span className="text-sm font-medium">Esperando comprobante de pago...</span>
+                                    </div>
+
                                     <button
-                                        onClick={() => handleStatusChange('confirmed')}
+                                        onClick={confirmBooking}
                                         disabled={updating}
-                                        className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3.5 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                        className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
-                                        <span className="material-symbols-outlined text-xl">check_circle</span>
-                                        Confirmar Turno
+                                        <span className="material-symbols-outlined text-xl">verified</span>
+                                        Confirmar Turno (Pago Recibido)
+                                    </button>
+
+                                    <button
+                                        onClick={handleCancel}
+                                        disabled={updating}
+                                        className="w-full bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 text-white/60 hover:text-red-400 font-bold py-3.5 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    >
+                                        Cancelar Turno
                                     </button>
                                 </div>
                             )}
 
+                            {/* ESTADO: CONFIRMADO */}
                             {booking.status === 'confirmed' && (
                                 <div className="flex gap-3">
                                     <button
-                                        onClick={() => handleStatusChange('cancelled')}
+                                        onClick={handleCancel}
                                         disabled={updating}
                                         className="flex-1 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 text-white/60 hover:text-red-400 font-bold py-3.5 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
@@ -199,19 +273,20 @@ const AdminBookingDetail = () => {
                                         className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3.5 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
                                         <span className="material-symbols-outlined text-xl">play_arrow</span>
-                                        Iniciar Servicio
+                                        Iniciar
                                     </button>
                                 </div>
                             )}
 
+                            {/* ESTADO: EN CURSO */}
                             {booking.status === 'in-progress' && (
                                 <button
-                                    onClick={() => handleStatusChange('completed')}
+                                    onClick={completeJob}
                                     disabled={updating}
-                                    className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:brightness-110 text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-green-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                    className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 hover:brightness-110 text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-teal-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                 >
                                     <span className="material-symbols-outlined text-xl">task_alt</span>
-                                    Marcar como Terminado
+                                    Avisar Auto Listo
                                 </button>
                             )}
                         </div>
@@ -232,6 +307,8 @@ const AdminBookingDetail = () => {
                     )}
                 </div>
             </div>
+
+
         </div>
     );
 };

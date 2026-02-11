@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBooking } from '../../context/BookingContext';
 import { useConfig } from '../../context/ConfigContext';
+import { BUSINESS_CONFIG } from '../../utils/constants';
 import { formatDuration } from '../../lib/formatters';
 
 const User6 = () => {
@@ -34,7 +35,7 @@ const User6 = () => {
         const message = encodeURIComponent(
             `Hola! Acabo de hacer una reserva para el ${dateStr} a las ${selectedTime}. ¿Pueden confirmarme?`
         );
-        window.open(`https://wa.me/5491234567890?text=${message}`, '_blank');
+        window.open(`https://wa.me/${BUSINESS_CONFIG.phone}?text=${message}`, '_blank');
     };
 
     const vehicle = vehicles.find(v => v.id === selectedVehicle);
