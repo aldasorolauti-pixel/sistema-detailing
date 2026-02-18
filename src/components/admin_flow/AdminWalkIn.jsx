@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useAdmin } from '../../context/AdminContext';
 import { useConfig } from '../../context/ConfigContext';
 import { formatDuration } from '../../lib/formatters';
+import { supabase } from '../../lib/supabaseClient';
 
 const AdminWalkIn = () => {
-    const { addWalkInBooking, navigateTo } = useAdmin();
+    const { navigateTo } = useAdmin();
     const { activeServices, vehicles } = useConfig();
 
     const [selectedVehicle, setSelectedVehicle] = useState(null);
@@ -15,6 +16,7 @@ const AdminWalkIn = () => {
         new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
     );
     const [saved, setSaved] = useState(false);
+    const [saving, setSaving] = useState(false);
 
     const toggleService = (sid) => {
         setSelectedServices(prev =>
@@ -29,20 +31,39 @@ const AdminWalkIn = () => {
 
     const isValid = selectedVehicle && selectedServices.length > 0 && clientData.name.trim() && clientData.phone.trim();
 
-    const handleSave = () => {
-        if (!isValid) return;
-        addWalkInBooking({
-            vehicle: selectedVehicle,
-            services: selectedServices,
-            date: new Date(selectedDate + 'T12:00:00').toISOString(),
-            time: selectedTime,
-            client: clientData,
-            price: totalPrice,
-            duration: totalDuration,
-        });
-        setSaved(true);
-        setTimeout(() => navigateTo('dashboard'), 1500);
+    const handleSave = async () => {
+        if (!isValid || saving) return;
+        setSaving(true);
+        try {
+            const { error } = await supabase
+                .from('turnos')
+                .insert([{
+                    vehicle: selectedVehicle,
+                    services: selectedServices,
+                    date: selectedDate,
+                    time: selectedTime,
+                    client: clientData,
+                    price: totalPrice,
+                    duration: totalDuration,
+                    status: 'confirmed',
+                    source: 'walkin',
+                }]);
+
+            if (error) {
+                console.error('Error saving walk-in:', error);
+                alert('Error al guardar el turno: ' + error.message);
+                setSaving(false);
+                return;
+            }
+
+            setSaved(true);
+            setTimeout(() => navigateTo('dashboard'), 1500);
+        } catch (err) {
+            console.error('Unexpected error:', err);
+            setSaving(false);
+        }
     };
+
 
     const todayStr = new Date().toISOString().split('T')[0];
 

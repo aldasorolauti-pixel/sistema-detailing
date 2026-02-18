@@ -3,6 +3,7 @@ import { useAdmin } from '../../context/AdminContext';
 import { useConfig } from '../../context/ConfigContext';
 import { formatDuration } from '../../lib/formatters';
 import { sendWhatsAppNotification } from '../../utils/notifications';
+import { supabase } from '../../lib/supabaseClient';
 
 const STATUS_CONFIG = {
     pending: { label: 'Pendiente', color: 'bg-amber-500/20 text-amber-400 border-amber-500/40', dot: 'bg-amber-400' },
@@ -14,66 +15,80 @@ const STATUS_CONFIG = {
 };
 
 const AdminBookingDetail = () => {
-    const { selectedBooking, navigateTo, updateBookingStatus } = useAdmin();
-    const { vehicles, services: allServices } = useConfig();
+    const { selectedBooking, navigateTo } = useAdmin();
+    const { vehicles, services: allServices, activeServices } = useConfig();
     const [updating, setUpdating] = useState(false);
-    const [showConfirmModal, setShowConfirmModal] = useState(false);
 
     if (!selectedBooking) return null;
 
     const booking = selectedBooking;
     const vehicle = vehicles.find(v => v.id === booking.vehicle);
-    const services = (booking.services || []).map(sid => allServices.find(s => s.id === sid)).filter(Boolean);
+    const catalog = (allServices?.length ? allServices : activeServices) || [];
+    const services = (booking.services || []).map(sid => catalog.find(s => s.id === sid)).filter(Boolean);
     const totalPrice = booking.price || services.reduce((sum, s) => sum + (s.basePrice * (vehicle?.multiplier || 1)), 0);
     const totalDuration = booking.duration || services.reduce((sum, s) => sum + s.duration, 0);
     const statusInfo = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
 
     const formatDate = (dateStr) => {
         if (!dateStr) return '—';
-        const d = new Date(dateStr);
+        const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00');
         return d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     };
 
-    // Acciones principales
-    const requestDeposit = () => {
+    // ── Core Supabase update ──
+    const updateStatus = async (newStatus, extraData = {}) => {
         setUpdating(true);
-        sendWhatsAppNotification('waiting_deposit', booking);
-        updateBookingStatus(booking.id, 'waiting_deposit');
-        setTimeout(() => navigateTo('dashboard'), 400);
+        const updates = { status: newStatus, ...extraData };
+        if (newStatus === 'completed') updates.completed_at = new Date().toISOString();
+
+        const { error } = await supabase
+            .from('turnos')
+            .update(updates)
+            .eq('id', booking.id);
+
+        if (error) {
+            console.error('Error updating booking:', error);
+            alert('Error al actualizar: ' + error.message);
+            setUpdating(false);
+            return;
+        }
+        navigateTo('dashboard');
+    };
+
+    // Enriched booking for WhatsApp (services as objects with .name)
+    const enrichedBooking = {
+        ...booking,
+        vehicle: vehicle || { name: booking.vehicle },
+        services: services.map(s => ({ name: s.name })),
+        price: totalPrice,
+        duration: totalDuration,
+    };
+
+    // ── Actions ──
+    const requestDeposit = () => {
+        sendWhatsAppNotification('waiting_deposit', enrichedBooking);
+        updateStatus('waiting_deposit');
     };
 
     const confirmBooking = () => {
-        setUpdating(true);
-        sendWhatsAppNotification('booking-confirmed', booking);
-        updateBookingStatus(booking.id, 'confirmed');
-        setTimeout(() => navigateTo('dashboard'), 400);
+        sendWhatsAppNotification('booking-confirmed', enrichedBooking);
+        updateStatus('confirmed');
     };
 
     const completeJob = () => {
         if (!window.confirm('¿El servicio está terminado?')) return;
-        setUpdating(true);
-        sendWhatsAppNotification('booking-completed', booking);
-        updateBookingStatus(booking.id, 'completed');
-        setTimeout(() => navigateTo('dashboard'), 400);
+        sendWhatsAppNotification('booking-completed', enrichedBooking);
+        updateStatus('completed');
     };
 
     const handleCancel = () => {
         if (!window.confirm('¿Seguro que querés cancelar este turno?')) return;
-        setUpdating(true);
-        sendWhatsAppNotification('booking-cancelled', booking);
-        updateBookingStatus(booking.id, 'cancelled');
-        setTimeout(() => navigateTo('dashboard'), 400);
-    };
-
-    const handleStatusChange = (newStatus) => {
-        setUpdating(true);
-        updateBookingStatus(booking.id, newStatus);
-        setTimeout(() => {
-            navigateTo('dashboard');
-        }, 400);
+        sendWhatsAppNotification('booking-cancelled', enrichedBooking);
+        updateStatus('cancelled');
     };
 
     const isReadOnly = booking.status === 'completed' || booking.status === 'cancelled';
+
 
     return (
         <div className="flex-1 p-8 overflow-y-auto">
@@ -268,7 +283,7 @@ const AdminBookingDetail = () => {
                                         Cancelar
                                     </button>
                                     <button
-                                        onClick={() => handleStatusChange('in-progress')}
+                                        onClick={() => updateStatus('in-progress')}
                                         disabled={updating}
                                         className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3.5 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                                     >

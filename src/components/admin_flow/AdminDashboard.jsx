@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAdmin } from '../../context/AdminContext';
 import { useConfig } from '../../context/ConfigContext';
-import { formatDuration } from '../../lib/formatters';
+import { supabase } from '../../lib/supabaseClient';
 
 const STATUS_LABELS = {
     pending: { label: 'Pendiente', color: 'bg-amber-500/20 text-amber-400' },
+    waiting_deposit: { label: 'Esperando Seña', color: 'bg-orange-500/20 text-orange-400' },
     confirmed: { label: 'Confirmado', color: 'bg-emerald-500/20 text-emerald-400' },
     'in-progress': { label: 'En Curso', color: 'bg-blue-500/20 text-blue-400' },
     completed: { label: 'Terminado', color: 'bg-teal-600/20 text-teal-300' },
@@ -18,13 +19,31 @@ const DAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', '
 const isSameDay = (d1, d2) => d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
 
 const AdminDashboard = () => {
-    const { getBookings, navigateTo, adminView } = useAdmin();
+    const { navigateTo, adminView } = useAdmin();
     const { vehicles, activeServices } = useConfig();
     const [bookings, setBookings] = useState([]);
 
     useEffect(() => {
-        setBookings(getBookings());
-    }, [getBookings, adminView]);
+        const fetchBookings = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('turnos')
+                    .select('*')
+                    .order('date', { ascending: true });
+
+                if (error) {
+                    console.error('Error fetching bookings:', error);
+                } else {
+                    setBookings(data || []);
+                }
+            } catch (err) {
+                console.error('Unexpected error:', err);
+            }
+        };
+
+        fetchBookings();
+    }, [adminView]); // Refetch when returning from detail/walkin views
+
 
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];

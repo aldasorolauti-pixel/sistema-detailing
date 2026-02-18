@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { useConfig } from './ConfigContext';
+import { supabase } from '../lib/supabaseClient';
 
 const BookingContext = createContext();
 
@@ -220,25 +221,46 @@ export const BookingProvider = ({ children }) => {
         localStorage.removeItem(STORAGE_KEY);
     };
 
-    const saveBooking = () => {
-        const bookings = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || '[]');
-        const newBooking = {
-            id: `booking-${Date.now()}`,
+    const saveBooking = async () => {
+        const price = calculatePrice();
+        const duration = calculateDuration();
+        const dateStr = bookingState.selectedDate?.toISOString().split('T')[0]; // 'YYYY-MM-DD'
+
+        const bookingPayload = {
             vehicle: bookingState.selectedVehicle,
             services: bookingState.selectedServices,
-            date: bookingState.selectedDate?.toISOString(),
+            date: dateStr,
             time: bookingState.selectedTime,
             client: bookingState.clientData,
-            price: calculatePrice(),
-            duration: calculateDuration(),
+            price,
+            duration,
             status: 'pending',
-            createdAt: new Date().toISOString(),
         };
-        bookings.push(newBooking);
-        localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
-        // NOTE: Do NOT call resetBooking() here — User6 needs the state to render the success screen.
-        // Reset happens when user clicks "Hacer otra reserva" or "Volver al inicio" in User6.
-        return newBooking;
+
+        try {
+            const { data, error } = await supabase
+                .from('turnos')
+                .insert([bookingPayload])
+                .select()
+                .single();
+
+            if (error) {
+                console.error('Error saving booking to Supabase:', error);
+                // Fallback: save to localStorage so the user doesn't lose their booking
+                const fallback = { ...bookingPayload, id: `booking-${Date.now()}`, createdAt: new Date().toISOString() };
+                const existing = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || '[]');
+                existing.push(fallback);
+                localStorage.setItem(BOOKINGS_KEY, JSON.stringify(existing));
+                return fallback;
+            }
+
+            // NOTE: Do NOT call resetBooking() here — User6 needs the state to render the success screen.
+            // Reset happens when user clicks "Hacer otra reserva" o "Volver al inicio" in User6.
+            return data;
+        } catch (err) {
+            console.error('Unexpected error saving booking:', err);
+            return null;
+        }
     };
 
     const value = {

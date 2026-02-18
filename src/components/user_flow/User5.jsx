@@ -19,6 +19,7 @@ const User5 = () => {
         resetBooking
     } = useBooking();
     const { vehicles, services: allServices } = useConfig();
+    const [saving, setSaving] = React.useState(false);
 
     const handleClose = () => {
         resetBooking();
@@ -30,9 +31,11 @@ const User5 = () => {
     const totalPrice = calculatePrice();
     const totalDuration = calculateDuration();
 
-    const handleConfirm = () => {
-        saveBooking();
+    const handleConfirm = async () => {
+        setSaving(true);
+        await saveBooking();
         setStep(6);
+        // No need to setSaving(false) — component unmounts after setStep(6)
     };
 
     return (
@@ -199,10 +202,20 @@ const User5 = () => {
                         </button>
                         <button
                             onClick={handleConfirm}
-                            className="flex-[2] bg-gradient-to-r from-[#FBBF24] to-[#D97706] hover:brightness-110 text-[#020617] font-bold text-base py-4 px-4 rounded-[16px] shadow-[0_8px_20px_-5px_rgba(245,158,11,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                            disabled={saving}
+                            className="flex-[2] bg-gradient-to-r from-[#FBBF24] to-[#D97706] hover:brightness-110 text-[#020617] font-bold text-base py-4 px-4 rounded-[16px] shadow-[0_8px_20px_-5px_rgba(245,158,11,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                            <span className="material-symbols-outlined text-xl">check</span>
-                            <span>Confirmar</span>
+                            {saving ? (
+                                <>
+                                    <div className="w-5 h-5 border-2 border-[#020617]/30 border-t-[#020617] rounded-full animate-spin" />
+                                    <span>Guardando...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="material-symbols-outlined text-xl">check</span>
+                                    <span>Confirmar</span>
+                                </>
+                            )}
                         </button>
                     </div>
                 </footer>

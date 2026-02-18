@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { VEHICLES as DEFAULT_VEHICLES, SERVICES as DEFAULT_SERVICES, TIME_SLOTS, DAYS_OFF, CAPACITY_PER_SLOT } from '../lib/constants';
+import { supabase } from '../lib/supabaseClient';
 
 const ConfigContext = createContext();
 
@@ -44,10 +45,46 @@ const save = (key, value) => {
 };
 
 export const ConfigProvider = ({ children }) => {
-    const [services, setServicesState] = useState(() => load(KEYS.SERVICES, DEFAULT_SERVICES));
+    const [services, setServicesState] = useState(DEFAULT_SERVICES);
     const [vehicles, setVehiclesState] = useState(() => load(KEYS.VEHICLES, DEFAULT_VEHICLES));
     const [schedule, setScheduleState] = useState(() => load(KEYS.SCHEDULE, buildDefaultSchedule()));
     const [capacity, setCapacityState] = useState(() => load(KEYS.CAPACITY, CAPACITY_PER_SLOT));
+
+    // Fetch active services from Supabase on mount
+    useEffect(() => {
+        const fetchServices = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('services')
+                    .select('*')
+                    .eq('active', true)
+                    .order('created_at', { ascending: true });
+
+                if (error) {
+                    console.error('Error loading services from Supabase:', error);
+                    return; // Keep DEFAULT_SERVICES as fallback
+                }
+
+                if (data && data.length > 0) {
+                    // Map DB columns to the shape the app expects
+                    const mapped = data.map(s => ({
+                        id: s.id,
+                        name: s.name,
+                        description: s.description,
+                        basePrice: s.price,       // DB uses 'price', app uses 'basePrice'
+                        duration: s.duration,
+                        icon: s.icon || '✨',
+                        active: s.active,
+                    }));
+                    setServicesState(mapped);
+                }
+            } catch (err) {
+                console.error('Unexpected error fetching services:', err);
+            }
+        };
+
+        fetchServices();
+    }, []);
 
     // Only active services for client-facing views
     const activeServices = services.filter(s => s.active !== false);

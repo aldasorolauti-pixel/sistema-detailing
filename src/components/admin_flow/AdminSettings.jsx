@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useConfig } from '../../context/ConfigContext';
 import { formatDuration } from '../../lib/formatters';
+import { supabase } from '../../lib/supabaseClient';
 
 const DAYS_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const EMOJI_OPTIONS = ['✨', '🪑', '💎', '🛡️', '⚙️', '🌬️', '🧼', '🚿', '🧴', '🔧', '🏎️', '💫', '🧹', '🪣'];
 
 const AdminSettings = () => {
     const {
-        services, activeServices, vehicles, schedule, capacity,
+        services, vehicles, schedule, capacity,
         addService, updateService, deleteService,
         updateVehicleMultiplier,
         updateDaySchedule, addException, removeException,
@@ -31,33 +32,61 @@ const AdminSettings = () => {
         setEditForm({ name: service.name, basePrice: service.basePrice, duration: service.duration, description: service.description || '' });
     };
 
-    const saveEditService = () => {
+    const saveEditService = async () => {
         if (!editForm.name || !editForm.basePrice || !editForm.duration) return;
-        updateService(editingServiceId, {
+        const updates = {
             name: editForm.name,
             description: editForm.description,
             basePrice: Number(editForm.basePrice),
             duration: Number(editForm.duration),
-        });
+        };
+        // Optimistic UI update
+        updateService(editingServiceId, updates);
         setEditingServiceId(null);
+        // Persist to Supabase
+        const { error } = await supabase
+            .from('services')
+            .update({ name: updates.name, description: updates.description, price: updates.basePrice, duration: updates.duration })
+            .eq('id', editingServiceId);
+        if (error) console.error('Error updating service:', error);
     };
 
-    const handleAddService = () => {
+    const handleAddService = async () => {
         if (!newService.name || !newService.basePrice || !newService.duration) return;
-        addService({
+        const payload = {
             name: newService.name,
             description: newService.description,
-            basePrice: Number(newService.basePrice),
+            price: Number(newService.basePrice),
             duration: Number(newService.duration),
             icon: newService.icon,
-        });
+            active: true,
+        };
+        // Insert into Supabase first to get the real ID
+        const { data, error } = await supabase
+            .from('services')
+            .insert([payload])
+            .select()
+            .single();
+        if (error) {
+            console.error('Error adding service:', error);
+            return;
+        }
+        // Add to local state with real DB id
+        addService({ ...payload, id: data.id, basePrice: data.price });
         setNewService({ name: '', description: '', basePrice: '', duration: '', icon: '✨' });
         setShowAddService(false);
     };
 
-    const confirmDelete = (id) => {
+    const confirmDelete = async (id) => {
+        // Optimistic UI update
         deleteService(id);
         setDeleteConfirm(null);
+        // Soft-delete in Supabase
+        const { error } = await supabase
+            .from('services')
+            .update({ active: false })
+            .eq('id', id);
+        if (error) console.error('Error deleting service:', error);
     };
 
     // ── Exception handlers ──
