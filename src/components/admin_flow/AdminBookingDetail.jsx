@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAdmin } from '../../context/AdminContext';
-import { useConfig } from '../../context/ConfigContext';
+import { useConfig } from '../../context/useConfig';
 import { formatDuration } from '../../lib/formatters';
 import { sendWhatsAppNotification } from '../../utils/notifications';
 import { supabase } from '../../lib/supabaseClient';

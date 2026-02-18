@@ -1,5 +1,5 @@
 import React from 'react';
-import { useBooking } from '../context/BookingContext';
+import { useBooking } from '../context/useBooking';
 import { User1, User2, User3, User4, User5, User6 } from './user_flow';
 
 const BookingWizard = () => {

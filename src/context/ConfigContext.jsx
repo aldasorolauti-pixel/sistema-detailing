@@ -1,17 +1,8 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { VEHICLES as DEFAULT_VEHICLES, SERVICES as DEFAULT_SERVICES, TIME_SLOTS, DAYS_OFF, CAPACITY_PER_SLOT } from '../lib/constants';
 import { supabase } from '../lib/supabaseClient';
-
-const ConfigContext = createContext();
-
-export const useConfig = () => {
-    const context = useContext(ConfigContext);
-    if (!context) {
-        throw new Error('useConfig must be used within ConfigProvider');
-    }
-    return context;
-};
+import { ConfigContext } from './ConfigContextObject';
 
 const KEYS = {
     SERVICES: 'config:services',
@@ -50,44 +41,75 @@ export const ConfigProvider = ({ children }) => {
     const [schedule, setScheduleState] = useState(() => load(KEYS.SCHEDULE, buildDefaultSchedule()));
     const [capacity, setCapacityState] = useState(() => load(KEYS.CAPACITY, CAPACITY_PER_SLOT));
 
-    // Fetch active services from Supabase on mount
-    useEffect(() => {
-        const fetchServices = async () => {
-            try {
-                const { data, error } = await supabase
-                    .from('services')
-                    .select('*')
-                    .eq('active', true)
-                    .order('created_at', { ascending: true });
+    // ── Fetch services + schedule from Supabase ──
+    const refreshConfig = useCallback(async () => {
+        try {
+            // 1. Services
+            const { data: svcData, error: svcError } = await supabase
+                .from('services')
+                .select('*')
+                .eq('active', true)
+                .order('created_at', { ascending: true });
 
-                if (error) {
-                    console.error('Error loading services from Supabase:', error);
-                    return; // Keep DEFAULT_SERVICES as fallback
-                }
-
-                if (data && data.length > 0) {
-                    // Map DB columns to the shape the app expects
-                    const mapped = data.map(s => ({
-                        id: s.id,
-                        name: s.name,
-                        description: s.description,
-                        basePrice: s.price,       // DB uses 'price', app uses 'basePrice'
-                        duration: s.duration,
-                        icon: s.icon || '✨',
-                        active: s.active,
-                    }));
-                    setServicesState(mapped);
-                }
-            } catch (err) {
-                console.error('Unexpected error fetching services:', err);
+            if (!svcError && svcData) {
+                setServicesState(svcData.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    description: s.description,
+                    basePrice: s.price,
+                    duration: s.duration,
+                    icon: s.icon || '✨',
+                    active: s.active,
+                })));
             }
-        };
 
-        fetchServices();
+            // 2. Business hours (weekly schedule)
+            const { data: hoursData, error: hoursError } = await supabase
+                .from('business_hours')
+                .select('*')
+                .order('day_of_week', { ascending: true });
+
+            if (!hoursError && hoursData && hoursData.length > 0) {
+                const weekly = [0, 1, 2, 3, 4, 5, 6].map(i => {
+                    const row = hoursData.find(h => h.day_of_week === i);
+                    return row
+                        ? { day: i, open: row.is_open, start: row.open_time?.slice(0, 5) || '09:00', end: row.close_time?.slice(0, 5) || '18:00' }
+                        : { day: i, open: false, start: '09:00', end: '18:00' };
+                });
+                // Preserve local exceptions (not yet in Supabase)
+                setScheduleState(prev => ({ ...prev, weekly }));
+            }
+
+            // 3. Exceptions from Supabase
+            const { data: excData, error: excError } = await supabase
+                .from('business_exceptions')
+                .select('*')
+                .order('created_at', { ascending: true });
+
+            if (!excError && excData) {
+                const exceptions = excData.map(e => ({
+                    id: e.id,
+                    date: e.date,
+                    start: e.start_date,
+                    end: e.end_date,
+                    closed: e.closed,
+                    reason: e.reason,
+                }));
+                setScheduleState(prev => ({ ...prev, exceptions }));
+            }
+        } catch (err) {
+            console.error('Unexpected error in refreshConfig:', err);
+        }
     }, []);
+
+    // Load on mount
+    useEffect(() => {
+        refreshConfig();
+    }, [refreshConfig]);
 
     // Only active services for client-facing views
     const activeServices = services.filter(s => s.active !== false);
+
 
     // ── Services CRUD ──
     const setServices = useCallback((newServices) => {
@@ -124,21 +146,66 @@ export const ConfigProvider = ({ children }) => {
     // ── Schedule ──
     const setSchedule = useCallback((newSchedule) => {
         setScheduleState(newSchedule);
-        save(KEYS.SCHEDULE, newSchedule);
+        save(KEYS.SCHEDULE, newSchedule); // localStorage backup
     }, []);
 
-    const updateDaySchedule = useCallback((dayIndex, updates) => {
+    const updateDaySchedule = useCallback(async (dayIndex, updates) => {
+        // 1. Optimistic local update
         const newWeekly = [...schedule.weekly];
         newWeekly[dayIndex] = { ...newWeekly[dayIndex], ...updates };
         setSchedule({ ...schedule, weekly: newWeekly });
+
+        // 2. Persist to Supabase business_hours
+        const dbUpdates = {};
+        if (updates.open !== undefined) dbUpdates.is_open = updates.open;
+        if (updates.start !== undefined) dbUpdates.open_time = updates.start;
+        if (updates.end !== undefined) dbUpdates.close_time = updates.end;
+
+        const { error } = await supabase
+            .from('business_hours')
+            .update(dbUpdates)
+            .eq('day_of_week', dayIndex);
+
+        if (error) console.error('Error updating business_hours:', error);
     }, [schedule, setSchedule]);
 
-    const addException = useCallback((exception) => {
-        setSchedule({ ...schedule, exceptions: [...schedule.exceptions, { ...exception, id: `exc-${Date.now()}` }] });
+    const addException = useCallback(async (exception) => {
+        // 1. Insert into Supabase
+        const { data, error } = await supabase
+            .from('business_exceptions')
+            .insert([{
+                date: exception.date || null,
+                start_date: exception.start || null,
+                end_date: exception.end || null,
+                closed: exception.closed ?? true,
+                reason: exception.reason,
+            }])
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error adding exception:', error);
+            // Fallback: add locally with temp id
+            setSchedule({ ...schedule, exceptions: [...schedule.exceptions, { ...exception, id: `exc-${Date.now()}` }] });
+            return;
+        }
+
+        // 2. Add to local state with real DB id
+        const newException = { id: data.id, date: data.date, start: data.start_date, end: data.end_date, closed: data.closed, reason: data.reason };
+        setSchedule({ ...schedule, exceptions: [...schedule.exceptions, newException] });
     }, [schedule, setSchedule]);
 
-    const removeException = useCallback((id) => {
+    const removeException = useCallback(async (id) => {
+        // 1. Optimistic local remove
         setSchedule({ ...schedule, exceptions: schedule.exceptions.filter(e => e.id !== id) });
+
+        // 2. Delete from Supabase
+        const { error } = await supabase
+            .from('business_exceptions')
+            .delete()
+            .eq('id', id);
+
+        if (error) console.error('Error removing exception:', error);
     }, [schedule, setSchedule]);
 
     // ── Capacity ──
@@ -185,6 +252,7 @@ export const ConfigProvider = ({ children }) => {
         vehicles,
         schedule,
         capacity,
+        refreshConfig,
         setServices,
         addService,
         updateService,

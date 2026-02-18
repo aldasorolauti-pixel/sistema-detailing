@@ -1,17 +1,8 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { useConfig } from './ConfigContext';
+import { useConfig } from './useConfig';
 import { supabase } from '../lib/supabaseClient';
-
-const BookingContext = createContext();
-
-export const useBooking = () => {
-    const context = useContext(BookingContext);
-    if (!context) {
-        throw new Error('useBooking must be used within BookingProvider');
-    }
-    return context;
-};
+import { BookingContext } from './BookingContextObject';
 
 const STORAGE_KEY = 'detailing_booking_draft';
 const BOOKINGS_KEY = 'detailing_bookings';
@@ -232,8 +223,8 @@ export const BookingProvider = ({ children }) => {
             date: dateStr,
             time: bookingState.selectedTime,
             client: bookingState.clientData,
-            price,
-            duration,
+            price: parseFloat(price) || 0,
+            duration: parseInt(duration) || 0,
             status: 'pending',
         };
 

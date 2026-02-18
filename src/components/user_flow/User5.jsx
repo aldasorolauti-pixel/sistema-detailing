@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBooking } from '../../context/BookingContext';
-import { useConfig } from '../../context/ConfigContext';
+import { useBooking } from '../../context/useBooking';
+import { useConfig } from '../../context/useConfig';
 import { formatDuration } from '../../lib/formatters';
 
 const User5 = () => {

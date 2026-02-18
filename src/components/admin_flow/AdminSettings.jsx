@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useConfig } from '../../context/ConfigContext';
+import { useConfig } from '../../context/useConfig';
 import { formatDuration } from '../../lib/formatters';
 import { supabase } from '../../lib/supabaseClient';
 
@@ -13,6 +13,7 @@ const AdminSettings = () => {
         updateVehicleMultiplier,
         updateDaySchedule, addException, removeException,
         setCapacity,
+        refreshConfig,
     } = useConfig();
 
     // ── Service editing state ──
@@ -49,6 +50,7 @@ const AdminSettings = () => {
             .update({ name: updates.name, description: updates.description, price: updates.basePrice, duration: updates.duration })
             .eq('id', editingServiceId);
         if (error) console.error('Error updating service:', error);
+        else refreshConfig(); // Propagate to client wizard
     };
 
     const handleAddService = async () => {
@@ -75,6 +77,7 @@ const AdminSettings = () => {
         addService({ ...payload, id: data.id, basePrice: data.price });
         setNewService({ name: '', description: '', basePrice: '', duration: '', icon: '✨' });
         setShowAddService(false);
+        refreshConfig(); // Propagate to client wizard
     };
 
     const confirmDelete = async (id) => {
@@ -87,6 +90,7 @@ const AdminSettings = () => {
             .update({ active: false })
             .eq('id', id);
         if (error) console.error('Error deleting service:', error);
+        else refreshConfig(); // Propagate to client wizard
     };
 
     // ── Exception handlers ──

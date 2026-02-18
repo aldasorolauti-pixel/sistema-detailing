@@ -1,30 +1,58 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAdmin } from '../../context/AdminContext';
-import { useConfig } from '../../context/ConfigContext';
+import { useConfig } from '../../context/useConfig';
+import { supabase } from '../../lib/supabaseClient';
 
 const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 const STATUS_LABELS = {
-    pending: { label: 'Pendiente', color: 'bg-yellow-500/20 text-yellow-400' },
-    confirmed: { label: 'Confirmado', color: 'bg-emerald-500/20 text-emerald-400' },
-    'in-progress': { label: 'En Curso', color: 'bg-blue-500/20 text-blue-400' },
-    completed: { label: 'Terminado', color: 'bg-green-600/20 text-green-400' },
-    cancelled: { label: 'Cancelado', color: 'bg-red-500/20 text-red-400' },
+    pending: { label: 'Pendiente', color: 'bg-amber-500/20 text-amber-400', dot: 'bg-amber-400' },
+    waiting_deposit: { label: 'Esperando Seña', color: 'bg-orange-500/20 text-orange-400', dot: 'bg-orange-400' },
+    confirmed: { label: 'Confirmado', color: 'bg-emerald-500/20 text-emerald-400', dot: 'bg-emerald-400' },
+    'in-progress': { label: 'En Curso', color: 'bg-blue-500/20 text-blue-400', dot: 'bg-blue-400' },
+    completed: { label: 'Terminado', color: 'bg-teal-600/20 text-teal-300', dot: 'bg-teal-300' },
+    cancelled: { label: 'Cancelado', color: 'bg-red-500/20 text-red-400', dot: 'bg-red-400' },
 };
 
 const AdminCalendar = () => {
-    const { getBookings, navigateTo, adminView } = useAdmin();
+    const { navigateTo } = useAdmin();
     const { vehicles } = useConfig();
     const [bookings, setBookings] = useState([]);
     const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
     const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
     const [selectedDay, setSelectedDay] = useState(null);
 
+    // Fetch bookings for the visible month from Supabase
     useEffect(() => {
-        setBookings(getBookings());
-    }, [getBookings, adminView]);
+        const fetchMonthBookings = async () => {
+            const monthStr = String(currentMonth + 1).padStart(2, '0');
+            const nextMonth = currentMonth === 11 ? 1 : currentMonth + 2;
+            const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
+            const nextMonthStr = String(nextMonth).padStart(2, '0');
+
+            const from = `${currentYear}-${monthStr}-01`;
+            const to = `${nextYear}-${nextMonthStr}-01`;
+
+            const { data, error } = await supabase
+                .from('turnos')
+                .select('*')
+                .gte('date', from)
+                .lt('date', to)
+                .neq('status', 'cancelled')
+                .order('date', { ascending: true });
+
+            if (error) {
+                console.error('Error fetching calendar bookings:', error);
+            } else {
+                setBookings(data || []);
+            }
+        };
+
+        fetchMonthBookings();
+    }, [currentMonth, currentYear]);
+
 
     const calendarDays = useMemo(() => {
         const firstDay = new Date(currentYear, currentMonth, 1).getDay();
@@ -101,11 +129,12 @@ const AdminCalendar = () => {
                                         {day || ''}
                                     </span>
                                     {hasBookings && (
-                                        <div className="flex gap-0.5 mt-1">
-                                            {dayBookings.slice(0, 3).map((_, j) => (
-                                                <div key={j} className="w-1.5 h-1.5 rounded-full bg-[#F59E0B]"></div>
-                                            ))}
-                                            {dayBookings.length > 3 && <span className="text-[8px] text-[#F59E0B] ml-0.5">+</span>}
+                                        <div className="flex gap-0.5 mt-1 flex-wrap justify-center">
+                                            {dayBookings.slice(0, 3).map((b, j) => {
+                                                const dotColor = STATUS_LABELS[b.status]?.dot || 'bg-amber-400';
+                                                return <div key={j} className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />;
+                                            })}
+                                            {dayBookings.length > 3 && <span className="text-[8px] text-white/40 ml-0.5">+</span>}
                                         </div>
                                     )}
                                 </button>

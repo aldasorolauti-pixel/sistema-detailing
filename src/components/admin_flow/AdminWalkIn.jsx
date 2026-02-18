@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAdmin } from '../../context/AdminContext';
-import { useConfig } from '../../context/ConfigContext';
+import { useConfig } from '../../context/useConfig';
 import { formatDuration } from '../../lib/formatters';
 import { supabase } from '../../lib/supabaseClient';
 
@@ -43,10 +43,9 @@ const AdminWalkIn = () => {
                     date: selectedDate,
                     time: selectedTime,
                     client: clientData,
-                    price: totalPrice,
-                    duration: totalDuration,
+                    price: parseFloat(totalPrice) || 0,
+                    duration: parseInt(totalDuration) || 0,
                     status: 'confirmed',
-                    source: 'walkin',
                 }]);
 
             if (error) {

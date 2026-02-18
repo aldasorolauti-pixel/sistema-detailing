@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBooking } from '../../context/BookingContext';
+import { useBooking } from '../../context/useBooking';
 
 const User4 = () => {
     const navigate = useNavigate();

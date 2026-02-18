@@ -1,4 +1,4 @@
-import { useBooking } from '../../context/BookingContext';
+import { useBooking } from '../../context/useBooking';
 import { StepIndicator } from './StepIndicator';
 import { VehicleSelector } from './VehicleSelector';
 import { WIZARD_STEPS } from '../../lib/constants';
